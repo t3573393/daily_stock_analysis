@@ -7,14 +7,15 @@ Stock Analyzer Skill - 配置管理模块
 职责：
 1. 支持从智能体配置文件加载配置
 2. 支持从环境变量加载配置（向后兼容）
-3. 配置优先级：运行时参数 > 智能体配置文件 > 环境变量 > 默认值
+3. 自动检测并使用智能体的 LLM 配置
+4. 配置优先级：运行时参数 > 智能体配置文件 > 环境变量 > 智能体默认配置 > 默认值
 """
 
 import os
 import yaml
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from dataclasses import dataclass, field, asdict
 
 logger = logging.getLogger(__name__)
@@ -72,9 +73,10 @@ class ConfigManager:
     
     支持多种配置来源（优先级从高到低）：
     1. 运行时传入的配置字典
-    2. 智能体配置文件（~/.config/claude/stock_analyzer.yaml）
+    2. Skill 配置文件（~/.config/claude/stock_analyzer.yaml）
     3. 环境变量
-    4. 默认值
+    4. 智能体默认配置（自动检测）
+    5. 默认值
     """
     
     DEFAULT_CONFIG_PATHS = [
@@ -82,6 +84,16 @@ class ConfigManager:
         Path.home() / ".config" / "stock_analyzer.yaml",
         Path.cwd() / "stock_analyzer.yaml",
         Path.cwd() / ".claude" / "stock_analyzer.yaml",
+    ]
+    
+    # 智能体配置文件路径（按优先级排序）
+    AGENT_CONFIG_PATHS = [
+        Path.home() / ".config" / "claude" / "config.yaml",
+        Path.home() / ".config" / "claude" / "settings.yaml",
+        Path.home() / ".claude" / "config.yaml",
+        Path.home() / ".claude" / "settings.yaml",
+        Path.cwd() / ".claude" / "config.yaml",
+        Path.cwd() / ".claude" / "CLAUDE.md",
     ]
     
     def __init__(self, config_path: Optional[str] = None, config_dict: Optional[Dict] = None):
@@ -101,6 +113,13 @@ class ConfigManager:
         """
         加载配置
         
+        配置优先级（从高到低）：
+        1. 运行时传入的配置字典（最高优先级）
+        2. 环境变量
+        3. Skill 配置文件
+        4. 智能体默认配置（自动检测）
+        5. 默认值（最低优先级）
+        
         Returns:
             SkillConfig: 加载后的配置对象
         """
@@ -110,13 +129,16 @@ class ConfigManager:
         # 1. 加载默认值（已在 __init__ 中设置）
         logger.debug("加载默认配置")
         
-        # 2. 从环境变量加载
-        self._load_from_env()
+        # 2. 从智能体配置加载（如果 Skill 没有显式配置）
+        self._load_from_agent_config()
         
-        # 3. 从配置文件加载
+        # 3. 从 Skill 配置文件加载
         self._load_from_file()
         
-        # 4. 从运行时字典加载（优先级最高）
+        # 4. 从环境变量加载（优先级高于配置文件）
+        self._load_from_env()
+        
+        # 5. 从运行时字典加载（优先级最高）
         self._load_from_dict()
         
         self._loaded = True
@@ -164,6 +186,116 @@ class ConfigManager:
                 pass
         if os.getenv("ANALYSIS_LANGUAGE"):
             self._config.analysis.language = os.getenv("ANALYSIS_LANGUAGE")
+    
+    def _load_from_agent_config(self):
+        """
+        从智能体配置加载 LLM 设置
+        
+        自动检测并使用智能体的模型配置，避免重复配置。
+        只在 Skill 没有显式配置 LLM 时生效（环境变量优先级更高）。
+        """
+        agent_config = self._detect_agent_config()
+        if not agent_config:
+            return
+        
+        logger.debug("从智能体配置加载 LLM 设置")
+        
+        # 提取 LLM 配置
+        llm_config = agent_config.get("llm", {})
+        
+        # 智能体配置可能有不同的结构，尝试多种常见格式
+        # 格式1: llm.provider, llm.model, llm.api_key
+        # 注意：这里只设置默认值，环境变量会在后面覆盖
+        if "provider" in llm_config:
+            self._config.llm.provider = llm_config["provider"]
+        if "model" in llm_config:
+            self._config.llm.model = llm_config["model"]
+        if "api_key" in llm_config:
+            self._config.llm.api_key = llm_config["api_key"]
+        if "base_url" in llm_config:
+            self._config.llm.base_url = llm_config["base_url"]
+        if "temperature" in llm_config:
+            try:
+                self._config.llm.temperature = float(llm_config["temperature"])
+            except (ValueError, TypeError):
+                pass
+        
+        # 格式2: 直接使用 OpenAI 格式
+        if not self._config.llm.api_key:
+            if "openai_api_key" in agent_config:
+                self._config.llm.api_key = agent_config["openai_api_key"]
+            elif "api_key" in agent_config:
+                self._config.llm.api_key = agent_config["api_key"]
+        
+        # 检测模型名称
+        if self._config.llm.api_key and not self._config.llm.model:
+            # 根据 API Key 前缀推断提供商
+            if self._config.llm.api_key.startswith("sk-"):
+                # 可能是 OpenAI 或兼容格式
+                self._config.llm.provider = self._config.llm.provider or "openai"
+                self._config.llm.model = self._config.llm.model or "gpt-4o"
+            elif "anthropic" in self._config.llm.api_key.lower():
+                self._config.llm.provider = "anthropic"
+                self._config.llm.model = self._config.llm.model or "claude-3-5-sonnet"
+        
+        logger.info(f"已加载智能体 LLM 配置: {self._config.llm.provider}/{self._config.llm.model}")
+    
+    def _detect_agent_config(self) -> Optional[Dict[str, Any]]:
+        """
+        检测智能体配置文件
+        
+        Returns:
+            智能体配置字典，如果未找到返回 None
+        """
+        for config_path in self.AGENT_CONFIG_PATHS:
+            config_path = config_path.expanduser().resolve()
+            if not config_path.exists():
+                continue
+            
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # 尝试解析 YAML
+                try:
+                    data = yaml.safe_load(content)
+                    if data and isinstance(data, dict):
+                        logger.debug(f"检测到智能体配置: {config_path}")
+                        return data
+                except yaml.YAMLError:
+                    # 可能是 Markdown 格式（CLAUDE.md），尝试提取 YAML 块
+                    if config_path.suffix == '.md':
+                        yaml_blocks = self._extract_yaml_from_markdown(content)
+                        for block in yaml_blocks:
+                            try:
+                                data = yaml.safe_load(block)
+                                if data and isinstance(data, dict):
+                                    logger.debug(f"从 Markdown 提取配置: {config_path}")
+                                    return data
+                            except yaml.YAMLError:
+                                continue
+                    
+            except Exception as e:
+                logger.debug(f"读取智能体配置失败 {config_path}: {e}")
+                continue
+        
+        return None
+    
+    def _extract_yaml_from_markdown(self, content: str) -> list:
+        """
+        从 Markdown 内容中提取 YAML 代码块
+        
+        Args:
+            content: Markdown 内容
+            
+        Returns:
+            YAML 代码块列表
+        """
+        import re
+        # 匹配 ```yaml 或 ```yml 代码块
+        pattern = r'```(?:yaml|yml)\n(.*?)```'
+        matches = re.findall(pattern, content, re.DOTALL)
+        return matches
     
     def _load_from_file(self):
         """从配置文件加载"""
