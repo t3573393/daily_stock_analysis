@@ -42,6 +42,7 @@ class CommandParser:
         "portfolio": ["/portfolio", "组合", "持仓", "portfolio"],
         "backtest": ["/backtest", "回测", "策略", "backtest"],
         "hot": ["/hot", "热点", "板块", "概念", "hot sectors", "行业板块"],
+        "export": ["/export", "导出", "保存报告", "export"],
         "help": ["/help", "帮助", "help", "?"],
     }
     
@@ -219,6 +220,7 @@ class CommandHandler:
             "portfolio": self._handle_portfolio,
             "backtest": self._handle_backtest,
             "hot": self._handle_hot,
+            "export": self._handle_export,
             "help": self._handle_help,
         }
         
@@ -307,6 +309,65 @@ class CommandHandler:
             show_chart=show_chart
         )
     
+    def _handle_export(self, command: Command) -> str:
+        """处理导出命令"""
+        # 解析参数
+        output_format = command.options.get('format', 'md')  # md 或 pdf
+        output_path = command.options.get('output', None)
+        report_type = command.options.get('type', 'stock')  # stock, hot, portfolio
+        
+        # 导入导出处理器
+        from .export_handler import ReportExporter
+        
+        exporter = ReportExporter(self.skill)
+        
+        if report_type == 'stock' and command.args:
+            # 导出股票报告
+            stock_code = command.args[0]
+            return exporter.export_stock_report(
+                stock_code=stock_code,
+                output_path=output_path,
+                format=output_format
+            )
+        elif report_type == 'hot':
+            # 导出热点板块报告
+            return exporter.export_hot_sectors_report(
+                output_path=output_path,
+                format=output_format,
+                days=int(command.options.get('days', 30)),
+                top_n=int(command.options.get('top', 10))
+            )
+        elif report_type == 'portfolio':
+            # 导出组合报告
+            stock_codes = command.args if command.args else []
+            portfolio_name = command.options.get('name', '我的组合')
+            return exporter.export_portfolio_report(
+                stock_codes=stock_codes,
+                portfolio_name=portfolio_name,
+                output_path=output_path,
+                format=output_format
+            )
+        
+        return """📄 **报告导出**
+
+用法示例:
+
+1. **导出股票分析报告 (Markdown)**
+   `/export 600519 --format=md`
+
+2. **导出股票分析报告 (PDF)**
+   `/export 600519 --format=pdf`
+
+3. **导出到指定路径**
+   `/export 600519 --output=~/reports/stock_report`
+
+4. **导出热点板块报告**
+   `/export --type=hot --format=md`
+
+5. **导出投资组合报告**
+   `/export --type=portfolio --name=我的组合 600519,000001`
+"""
+    
     def _handle_help(self, command: Command) -> str:
         """处理帮助命令"""
         return self._get_help_message()
@@ -335,7 +396,12 @@ class CommandHandler:
    - 指定板块: `/hot 新能源 --chart=true`
    - 只看排行: `/hot --top=15`
 
-6️⃣ **帮助** `/help`
+6️⃣ **导出报告** `/export`
+   - Markdown: `/export 600519 --format=md`
+   - PDF: `/export 600519 --format=pdf`
+   - 热点报告: `/export --type=hot`
+
+7️⃣ **帮助** `/help`
    - 显示本帮助信息
 
 **智能识别:**
@@ -345,6 +411,7 @@ class CommandHandler:
 - 股票代码支持 6 位数字格式
 - 多股票用逗号分隔
 - 分析结果仅供参考，不构成投资建议
+- PDF 导出需要安装 weasyprint 或 pandoc
 """
 
 
