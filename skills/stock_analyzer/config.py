@@ -87,13 +87,56 @@ class ConfigManager:
     ]
     
     # 智能体配置文件路径（按优先级排序）
+    # 支持多种 AI 编程工具和智能体
     AGENT_CONFIG_PATHS = [
+        # Claude Code
         Path.home() / ".config" / "claude" / "config.yaml",
         Path.home() / ".config" / "claude" / "settings.yaml",
         Path.home() / ".claude" / "config.yaml",
         Path.home() / ".claude" / "settings.yaml",
         Path.cwd() / ".claude" / "config.yaml",
         Path.cwd() / ".claude" / "CLAUDE.md",
+        
+        # OpenClaw
+        Path.home() / ".config" / "openclaw" / "config.yaml",
+        Path.home() / ".config" / "openclaw" / "settings.yaml",
+        Path.home() / ".openclaw" / "config.yaml",
+        Path.home() / ".openclaw" / "settings.yaml",
+        Path.cwd() / ".openclaw" / "config.yaml",
+        
+        # Trae
+        Path.home() / ".config" / "trae" / "config.yaml",
+        Path.home() / ".config" / "trae" / "settings.yaml",
+        Path.home() / ".trae" / "config.yaml",
+        Path.home() / ".trae" / "settings.yaml",
+        Path.home() / ".config" / "trae-ide" / "config.yaml",
+        Path.cwd() / ".trae" / "config.yaml",
+        
+        # Cursor
+        Path.home() / ".config" / "cursor" / "settings.json",
+        Path.home() / ".cursor" / "settings.json",
+        
+        # Windsurf
+        Path.home() / ".config" / "windsurf" / "settings.json",
+        Path.home() / ".windsurf" / "settings.json",
+        
+        # Generic AI Config (通用)
+        Path.home() / ".config" / "ai" / "config.yaml",
+        Path.home() / ".config" / "ai-assistant" / "config.yaml",
+        
+        # 扣子 (Coze)
+        Path.home() / ".config" / "coze" / "config.json",
+        Path.home() / ".config" / "coze" / "settings.json",
+        Path.home() / ".coze" / "config.json",
+        Path.home() / ".coze" / "settings.json",
+        Path.home() / ".config" / "coze-cli" / "config.json",
+        Path.home() / ".coze-cli" / "config.json",
+        Path.home() / ".config" / "扣子" / "config.json",
+        Path.cwd() / ".coze" / "config.json",
+        
+        # 字节/火山引擎相关
+        Path.home() / ".config" / "bytebase" / "config.json",
+        Path.home() / ".config" / "volcengine" / "config.yaml",
     ]
     
     def __init__(self, config_path: Optional[str] = None, config_dict: Optional[Dict] = None):
@@ -244,6 +287,12 @@ class ConfigManager:
         """
         检测智能体配置文件
         
+        支持多种格式和智能体：
+        - YAML: Claude Code, OpenClaw, Trae 等
+        - JSON: Cursor, Windsurf 等
+        - Markdown: CLAUDE.md 等
+        - 扣子(Coze): .coze 配置文件
+        
         Returns:
             智能体配置字典，如果未找到返回 None
         """
@@ -256,30 +305,172 @@ class ConfigManager:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
-                # 尝试解析 YAML
-                try:
-                    data = yaml.safe_load(content)
-                    if data and isinstance(data, dict):
-                        logger.debug(f"检测到智能体配置: {config_path}")
+                # 根据文件扩展名选择解析方式
+                if config_path.suffix == '.json':
+                    # JSON 格式（Cursor, Windsurf 等）
+                    data = self._parse_json_config(content, config_path)
+                    if data:
+                        logger.debug(f"检测到智能体配置 (JSON): {config_path}")
                         return data
-                except yaml.YAMLError:
-                    # 可能是 Markdown 格式（CLAUDE.md），尝试提取 YAML 块
-                    if config_path.suffix == '.md':
-                        yaml_blocks = self._extract_yaml_from_markdown(content)
-                        for block in yaml_blocks:
-                            try:
-                                data = yaml.safe_load(block)
-                                if data and isinstance(data, dict):
-                                    logger.debug(f"从 Markdown 提取配置: {config_path}")
-                                    return data
-                            except yaml.YAMLError:
-                                continue
+                
+                elif config_path.suffix == '.md':
+                    # Markdown 格式（CLAUDE.md）
+                    yaml_blocks = self._extract_yaml_from_markdown(content)
+                    for block in yaml_blocks:
+                        try:
+                            data = yaml.safe_load(block)
+                            if data and isinstance(data, dict):
+                                logger.debug(f"从 Markdown 提取配置: {config_path}")
+                                return data
+                        except yaml.YAMLError:
+                            continue
+                
+                else:
+                    # YAML 格式
+                    try:
+                        data = yaml.safe_load(content)
+                        if data and isinstance(data, dict):
+                            logger.debug(f"检测到智能体配置 (YAML): {config_path}")
+                            return data
+                    except yaml.YAMLError:
+                        # 尝试作为纯文本解析
+                        continue
                     
             except Exception as e:
                 logger.debug(f"读取智能体配置失败 {config_path}: {e}")
                 continue
         
         return None
+    
+    def _parse_json_config(self, content: str, config_path: Path) -> Optional[Dict[str, Any]]:
+        """
+        解析 JSON 配置文件
+        
+        尝试从各种 JSON 配置格式中提取 LLM 配置。
+        支持 Cursor、Windsurf 等工具的配置文件格式。
+        
+        Args:
+            content: JSON 文件内容
+            config_path: 配置文件路径
+            
+        Returns:
+            提取的配置字典
+        """
+        try:
+            import json
+            data = json.loads(content)
+            
+            if not isinstance(data, dict):
+                return None
+            
+            # 尝试多种常见的 JSON 配置格式
+            
+            # 格式1: 顶层 llm 配置
+            if "llm" in data and isinstance(data["llm"], dict):
+                return {"llm": data["llm"]}
+            
+            # 格式2: 顶层 model/model_provider 配置
+            if "model" in data or "model_provider" in data:
+                return {"llm": {
+                    "model": data.get("model"),
+                    "provider": data.get("model_provider"),
+                    "api_key": data.get("api_key"),
+                }}
+            
+            # 格式3: cursor 格式 "model" -> "modelName"
+            if "modelName" in data:
+                return {"llm": {
+                    "model": data.get("modelName"),
+                    "provider": data.get("provider", "openai"),
+                    "api_key": data.get("apiKey"),
+                }}
+            
+            # 格式4: windsurf 格式
+            if "language_model" in data:
+                lm = data["language_model"]
+                if isinstance(lm, dict):
+                    return {"llm": {
+                        "model": lm.get("model"),
+                        "provider": lm.get("provider"),
+                        "api_key": lm.get("api_key"),
+                    }}
+            
+            # 格式5: 查找嵌套的 api_key
+            api_key = self._find_api_key_in_dict(data)
+            if api_key:
+                return {"llm": {
+                    "api_key": api_key,
+                    "provider": self._infer_provider_from_key(api_key),
+                }}
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"解析 JSON 配置失败: {e}")
+            return None
+    
+    def _find_api_key_in_dict(self, data: Any, max_depth: int = 5) -> Optional[str]:
+        """
+        在嵌套字典中递归查找 API Key
+        
+        Args:
+            data: 要搜索的数据
+            max_depth: 最大递归深度
+            
+        Returns:
+            找到的 API Key 或 None
+        """
+        if max_depth <= 0:
+            return None
+        
+        if isinstance(data, dict):
+            # 检查常见字段名
+            for key in ["api_key", "apiKey", "apikey", "api-key", "key"]:
+                if key in data and isinstance(data[key], str) and data[key].startswith(("sk-", "sk-ant", "sk-proj")):
+                    return data[key]
+            
+            # 递归搜索嵌套字典
+            for value in data.values():
+                if isinstance(value, dict):
+                    result = self._find_api_key_in_dict(value, max_depth - 1)
+                    if result:
+                        return result
+                elif isinstance(value, list):
+                    for item in value:
+                        result = self._find_api_key_in_dict(item, max_depth - 1)
+                        if result:
+                            return result
+        
+        elif isinstance(data, list):
+            for item in data:
+                result = self._find_api_key_in_dict(item, max_depth - 1)
+                if result:
+                    return result
+        
+        return None
+    
+    def _infer_provider_from_key(self, api_key: str) -> str:
+        """
+        根据 API Key 推断提供商
+        
+        Args:
+            api_key: API Key 字符串
+            
+        Returns:
+            推断的提供商名称
+        """
+        api_key_lower = api_key.lower()
+        
+        if "anthropic" in api_key_lower or api_key.startswith("sk-ant"):
+            return "anthropic"
+        elif "deepseek" in api_key_lower:
+            return "deepseek"
+        elif "gemini" in api_key_lower or "aiplatform" in api_key_lower:
+            return "gemini"
+        elif api_key.startswith("sk-"):
+            return "openai"
+        else:
+            return "openai"  # 默认假设为 OpenAI 兼容格式
     
     def _extract_yaml_from_markdown(self, content: str) -> list:
         """
