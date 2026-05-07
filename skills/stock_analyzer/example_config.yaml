@@ -1,0 +1,117 @@
+# Stock Analyzer Skill 示例配置文件
+# 复制此文件到 ~/.config/claude/stock_analyzer.yaml 并根据需要修改
+
+stock_analyzer:
+  # ============================================
+  # LLM 配置
+  # ============================================
+  llm:
+    # LLM 提供商
+    # 支持: openai, anthropic, gemini, vertex_ai, deepseek, ollama
+    provider: openai
+    
+    # API Key（必需）
+    # 建议从环境变量读取，不要直接写入配置文件
+    api_key: ${OPENAI_API_KEY}
+    
+    # 模型名称
+    # OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo
+    # Anthropic: claude-3-5-sonnet-20241022, claude-3-opus-20240229
+    # Gemini: gemini-1.5-pro, gemini-1.5-flash
+    # DeepSeek: deepseek-chat, deepseek-coder
+    model: gpt-4o
+    
+    # 基础 URL（可选，用于自定义端点或代理）
+    # base_url: https://api.openai.com/v1
+    
+    # 温度参数（0-1，越高越创造性）
+    temperature: 0.7
+    
+    # 最大 token 数
+    max_tokens: 4096
+  
+  # ============================================
+  # 数据源配置
+  # ============================================
+  data_source:
+    # 主要数据源
+    # 支持: akshare, tushare, baostock, efinance, yfinance
+    primary: akshare
+    
+    # 备用数据源（当主要数据源失败时使用）
+    fallback: tushare
+    
+    # Tushare Token（可选，但建议配置）
+    # 获取地址: https://tushare.pro/register
+    tushare_token: ${TUSHARE_TOKEN}
+    
+    # AkShare 配置（可选）
+    akshare_config:
+      timeout: 30
+      retry_times: 3
+  
+  # ============================================
+  # 通知配置（可选）
+  # ============================================
+  notification:
+    # 是否启用通知
+    enabled: false
+    
+    # 通知渠道列表
+    # 支持: wechat, dingtalk, feishu, discord, telegram, email
+    channels: []
+    
+    # 各渠道的具体配置需要在原项目配置中设置
+  
+  # ============================================
+  # 分析参数配置
+  # ============================================
+  analysis:
+    # 默认报告类型
+    # full: 完整报告（包含技术面、基本面、操作策略）
+    # simple: 简要报告（仅核心结论）
+    default_report_type: full
+    
+    # 新闻时间窗口（天）
+    # 决定分析时考虑多少天内的新闻
+    news_window: 7
+    
+    # 报告语言
+    # zh: 中文
+    # en: 英文
+    language: zh
+    
+    # 是否启用回测功能
+    enable_backtest: true
+    
+    # 是否启用投资组合功能
+    enable_portfolio: true
+
+# ============================================
+# 使用说明
+# ============================================
+# 
+# 1. 配置文件位置:
+#    - 优先: ~/.config/claude/stock_analyzer.yaml
+#    - 其次: ~/.config/stock_analyzer.yaml
+#    - 当前目录: ./stock_analyzer.yaml
+#
+# 2. 环境变量支持:
+#    配置文件中可以使用 ${VAR_NAME} 语法引用环境变量
+#    例如: api_key: ${OPENAI_API_KEY}
+#
+# 3. 环境变量方式（备选）:
+#    如果不使用配置文件，也可以通过环境变量设置:
+#    - LLM_PROVIDER=openai
+#    - LLM_API_KEY=sk-xxx
+#    - LLM_MODEL=gpt-4o
+#    - TUSHARE_TOKEN=xxx
+#
+# 4. 快速测试:
+#    配置完成后，运行以下命令测试:
+#    python -c "from skills.stock_analyzer import analyze; print(analyze('600989'))"
+#
+# 5. 获取 API Key:
+#    - OpenAI: https://platform.openai.com/api-keys
+#    - Tushare: https://tushare.pro/register
+#    - 其他 LLM 提供商请参考各自文档
