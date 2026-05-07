@@ -41,6 +41,7 @@ class CommandParser:
         "market": ["/market", "大盘", "市场", "复盘", "market review"],
         "portfolio": ["/portfolio", "组合", "持仓", "portfolio"],
         "backtest": ["/backtest", "回测", "策略", "backtest"],
+        "hot": ["/hot", "热点", "板块", "概念", "hot sectors", "行业板块"],
         "help": ["/help", "帮助", "help", "?"],
     }
     
@@ -217,6 +218,7 @@ class CommandHandler:
             "market": self._handle_market,
             "portfolio": self._handle_portfolio,
             "backtest": self._handle_backtest,
+            "hot": self._handle_hot,
             "help": self._handle_help,
         }
         
@@ -286,12 +288,30 @@ class CommandHandler:
         
         return self.skill.backtest_strategy(strategy_name, stock_code)
     
+    def _handle_hot(self, command: Command) -> str:
+        """处理热点板块命令"""
+        # 解析参数
+        days = int(command.options.get('days', 30))
+        top_n = int(command.options.get('top', 10))
+        show_chart = command.options.get('chart', True)
+        
+        # 检查是否指定了特定板块
+        sector_name = None
+        if command.args:
+            sector_name = command.args[0]
+        
+        return self.skill.get_hot_sectors(
+            days=days,
+            top_n=top_n,
+            sector_name=sector_name,
+            show_chart=show_chart
+        )
+    
     def _handle_help(self, command: Command) -> str:
         """处理帮助命令"""
         return self._get_help_message()
     
     def _get_help_message(self) -> str:
-        """获取帮助信息"""
         return """📊 **Stock Analyzer 股票分析助手**
 
 **可用命令:**
@@ -310,7 +330,12 @@ class CommandHandler:
 4️⃣ **策略回测** `/backtest`
    - 回测: `/backtest 均线金叉 600519`
 
-5️⃣ **帮助** `/help`
+5️⃣ **热点板块** `/hot`
+   - 查看热点: `/hot` 或 `/hot --days=30`
+   - 指定板块: `/hot 新能源 --chart=true`
+   - 只看排行: `/hot --top=15`
+
+6️⃣ **帮助** `/help`
    - 显示本帮助信息
 
 **智能识别:**
@@ -514,6 +539,46 @@ class StockAnalyzerSkill:
 python main.py --mode backtest --strategy {strategy_name} --code {stock_code}
 ```
 """
+    
+    def get_hot_sectors(
+        self,
+        days: int = 30,
+        top_n: int = 10,
+        sector_name: Optional[str] = None,
+        show_chart: bool = True
+    ) -> str:
+        """
+        获取热点板块报告
+        
+        Args:
+            days: 追踪天数
+            top_n: 返回前N个热门板块
+            sector_name: 指定板块名称
+            show_chart: 是否显示图表
+            
+        Returns:
+            格式化后的热点板块报告
+        """
+        try:
+            # 延迟导入避免循环依赖
+            from .hot_sectors import HotSectorTracker, get_trend_ascii_chart
+            
+            # 创建追踪器
+            tracker = HotSectorTracker(self.config)
+            
+            if sector_name:
+                # 指定板块详情
+                chart = tracker.get_sector_trend_chart(sector_name, days)
+                return f"📊 **板块走势: {sector_name}**\n\n{chart}"
+            
+            # 获取热点板块报告
+            report = tracker.get_hot_sectors(days=days, top_n=top_n)
+            
+            return self.formatter.format_hot_sectors_report(report, show_chart=show_chart)
+            
+        except Exception as e:
+            logger.error(f"获取热点板块失败: {e}")
+            return f"❌ 获取热点板块失败: {str(e)}"
 
 
 # 便捷函数

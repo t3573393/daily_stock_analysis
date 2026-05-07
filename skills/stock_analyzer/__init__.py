@@ -50,6 +50,7 @@ from .config import (
 )
 from .formatter import ReportFormatter, SimpleFormatter, get_formatter
 from .analyzer import StockAnalyzerService, AnalysisResultWrapper
+from .hot_sectors import HotSectorTracker, HotSectorReport, SectorData, get_trend_ascii_chart
 
 __all__ = [
     # 主类
@@ -66,6 +67,12 @@ __all__ = [
     # 格式化类
     "ReportFormatter",
     "SimpleFormatter",
+    
+    # 热点板块
+    "HotSectorTracker",
+    "HotSectorReport",
+    "SectorData",
+    "get_trend_ascii_chart",
     
     # 便捷函数
     "create_skill",

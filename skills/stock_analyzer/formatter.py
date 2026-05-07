@@ -422,6 +422,91 @@ class ReportFormatter:
             message,
             "请检查股票代码是否正确，或稍后重试。"
         )
+    
+    def format_hot_sectors_report(self, report: "HotSectorReport", show_chart: bool = True) -> str:
+        """
+        格式化热点板块报告
+        
+        Args:
+            report: HotSectorReport 对象
+            show_chart: 是否显示图表
+            
+        Returns:
+            格式化后的热点板块报告
+        """
+        if not report:
+            return self._get_error_message("无法获取热点板块数据")
+        
+        lines = []
+        
+        # 标题
+        lines.append(f"🔥 **市场热点板块追踪报告**")
+        lines.append(f"📅 日期: {report.date}")
+        lines.append("")
+        
+        # 热门板块排行
+        if report.top_sectors:
+            lines.append("📈 **热门板块 TOP 10**")
+            lines.append("")
+            lines.append("| 排名 | 板块名称 | 涨跌幅 | 换手率 | 热度指数 | 趋势 |")
+            lines.append("|------|---------|-------|--------|---------|------|")
+            
+            for i, sector in enumerate(report.top_sectors[:10], 1):
+                change_str = f"{sector.change_percent:+.2f}%"
+                trend_emoji = "📈" if sector.trend == "rising" else ("📉" if sector.trend == "falling" else "➡️")
+                lines.append(f"| {i} | {sector.name} | {change_str} | {sector.turnover_rate:.2f}% | {sector.heat_score:.1f} | {trend_emoji} |")
+            
+            lines.append("")
+        
+        # 涨幅概念
+        if report.rising_concepts:
+            lines.append("🚀 **强势概念**")
+            lines.append("  " + " | ".join([f"`{c}`" for c in report.rising_concepts[:8]]))
+            lines.append("")
+        
+        # 弱势概念
+        if report.falling_concepts:
+            lines.append("📉 **弱势概念**")
+            lines.append("  " + " | ".join([f"`{c}`" for c in report.falling_concepts[:8]]))
+            lines.append("")
+        
+        # 新晋热点
+        if report.new_hot_concepts:
+            lines.append("⭐ **新晋热点**")
+            lines.append("  " + " | ".join([f"`{c}`" for c in report.new_hot_concepts]))
+            lines.append("")
+        
+        # 退潮概念
+        if report.fading_concepts:
+            lines.append("💨 **退潮概念**")
+            lines.append("  " + " | ".join([f"`{c}`" for c in report.fading_concepts]))
+            lines.append("")
+        
+        # 热度分布图
+        if show_chart and report.top_sectors:
+            lines.append("📊 **热度分布**")
+            lines.append("")
+            for sector in report.top_sectors[:8]:
+                bar_length = int(sector.heat_score / 2)
+                bar = "█" * bar_length + "░" * (50 - bar_length)
+                change_str = f"{sector.change_percent:+.1f}%"
+                lines.append(f"{sector.name:<12} [{bar}] {change_str} ({sector.heat_score:.0f})")
+            lines.append("")
+        
+        # 投资建议
+        lines.append("💡 **操作建议**")
+        if report.top_sectors:
+            top_3 = [s.name for s in report.top_sectors[:3]]
+            lines.append(f"- 关注强势板块: {', '.join(top_3)}")
+            lines.append("- 建议配置热门板块龙头股")
+            lines.append("- 注意轮动节奏，避免追高")
+        lines.append("")
+        
+        # 免责声明
+        lines.append("---")
+        lines.append("*⚠️ 免责声明: 以上分析仅供参考，不构成投资建议。热点轮动较快，请注意风险。*")
+        
+        return "\n".join(lines)
 
 
 class SimpleFormatter(ReportFormatter):
