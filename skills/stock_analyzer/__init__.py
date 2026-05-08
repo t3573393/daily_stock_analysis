@@ -34,7 +34,7 @@ AI驱动的股票分析助手，提供专业的股票分析、市场复盘和投
         tushare_token: your-token
 """
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __author__ = "Dragon Stock Analyzer Team"
 
 # 主要导出
@@ -51,6 +51,11 @@ from .config import (
 from .formatter import ReportFormatter, SimpleFormatter, get_formatter
 from .analyzer import StockAnalyzerService, AnalysisResultWrapper
 from .hot_sectors import HotSectorTracker, HotSectorReport, SectorData, get_trend_ascii_chart
+
+# 图表和报告导出
+from .chart_generator import ChartGenerator, ChartConfig, create_trend_chart
+from .sector_history import SectorHistoryStore, SectorSnapshot
+from .hot_sector_report import HotSectorReportExporter
 
 __all__ = [
     # 主类
@@ -73,6 +78,18 @@ __all__ = [
     "HotSectorReport",
     "SectorData",
     "get_trend_ascii_chart",
+    
+    # 图表生成
+    "ChartGenerator",
+    "ChartConfig",
+    "create_trend_chart",
+    
+    # 历史数据
+    "SectorHistoryStore",
+    "SectorSnapshot",
+    
+    # 报告导出
+    "HotSectorReportExporter",
     
     # 便捷函数
     "create_skill",
