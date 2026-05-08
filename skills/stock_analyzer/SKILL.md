@@ -1,13 +1,29 @@
 ---
 name: "stock_analyzer"
-description: "AI驱动的股票分析助手。支持单股/多股分析、大盘复盘、投资组合管理和策略回测。生成人类可读的分析报告，适合在聊天界面直接展示。"
-version: "1.0.0"
+description: "AI驱动的股票分析助手。支持单股/多股分析，大盘复盘，投资组合管理和策略回测。生成人类可读的分析报告，适合在聊天界面直接展示。"
+version: "2.0.0"
 author: "Dragon Stock Analyzer Team"
+requirements:
+  - akshare>=1.14.0
+  - pyyaml>=6.0
+  optional:
+    - tushare>=1.4.0
+    - weasyprint>=60.0
 ---
 
 # Stock Analyzer Skill
 
 AI驱动的股票分析助手，提供专业的股票分析、市场复盘和投资建议。
+
+## 安装依赖
+
+```bash
+# 安装核心依赖
+pip install -r requirements.txt
+
+# 或单独安装
+pip install akshare pyyaml
+```
 
 ## 功能概览
 

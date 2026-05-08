@@ -1,0 +1,22 @@
+# Stock Analyzer Skill - Python 依赖
+# 安装方式: pip install -r requirements.txt
+
+# 核心依赖
+pyyaml>=6.0
+
+# 数据获取
+akshare>=1.14.0
+tushare>=1.4.0
+
+# 可选数据源
+baostock>=0.8.8
+efinance>=0.6.0
+
+# PDF 生成 (可选)
+weasyprint>=60.0
+
+# 或使用 pdfkit (需要安装 wkhtmltopdf)
+# pdfkit>=1.0.0
+
+# 或使用 pandoc (需要系统安装 pandoc)
+# pandoc>=2.0.0

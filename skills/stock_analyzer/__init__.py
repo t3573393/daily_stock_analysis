@@ -57,6 +57,9 @@ from .chart_generator import ChartGenerator, ChartConfig, create_trend_chart
 from .sector_history import SectorHistoryStore, SectorSnapshot
 from .hot_sector_report import HotSectorReportExporter
 
+# 数据获取
+from .akshare_fetcher import AkshareDataFetcher, get_akshare_fetcher, AKSHARE_AVAILABLE
+
 __all__ = [
     # 主类
     "StockAnalyzerSkill",
@@ -90,6 +93,11 @@ __all__ = [
     
     # 报告导出
     "HotSectorReportExporter",
+    
+    # 数据获取
+    "AkshareDataFetcher",
+    "get_akshare_fetcher",
+    "AKSHARE_AVAILABLE",
     
     # 便捷函数
     "create_skill",
