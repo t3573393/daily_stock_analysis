@@ -14,7 +14,7 @@ Stock Analyzer Skill - 热点板块报告导出模块
 import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from .report_exporter import MarkdownExporter, ReportMetadata
 from .chart_generator import ChartGenerator, ChartConfig
 from .sector_history import SectorHistoryStore
@@ -45,7 +45,46 @@ class HotSectorReportExporter:
         self.include_ascii = include_ascii_charts
         self.chart_generator = ChartGenerator(ChartConfig(width=700, height=350))
         self.history_store = SectorHistoryStore()
-    
+
+    def _generate_mock_trend_data(
+        self,
+        sectors: List[Dict],
+        days: int = 30
+    ) -> Dict[str, Dict]:
+        """
+        生成模拟历史趋势数据用于演示
+
+        Args:
+            sectors: 当前板块数据
+            days: 模拟天数
+
+        Returns:
+            {板块名: {"dates": [...], "scores": [...]}}
+        """
+        import random
+        random.seed(42)
+
+        result = {}
+        base_date = datetime.now()
+
+        for sector in sectors[:5]:
+            name = sector.get("name", f"Sector{len(result)}")
+            current_score = sector.get("heat_score", 70)
+
+            dates = []
+            scores = []
+
+            for i in range(days, 0, -1):
+                date = (base_date - timedelta(days=i)).strftime("%Y-%m-%d")
+                variation = random.uniform(-15, 15)
+                score = max(10, min(100, current_score - (days - i) * 0.5 + variation))
+                dates.append(date)
+                scores.append(round(score, 1))
+
+            result[name] = {"dates": dates, "scores": scores}
+
+        return result
+
     def generate_report(
         self,
         current_sectors: List[Dict],
@@ -151,42 +190,53 @@ class HotSectorReportExporter:
         exporter.add_heading("📈 板块热度趋势", 2)
         exporter.add_paragraph("以下图表展示热门板块近期的热度变化趋势：")
         exporter.add_paragraph("")
-        
-        # 获取要展示的板块
+
         top_sectors = [s.get("name", f"Sector{i}") for i, s in enumerate(sectors[:5])]
-        
-        # 构建历史数据
-        historical_data = {}
+
         dates = self.history_store.get_dates()[-days:]
-        
+        historical_data = {}
+
         for date in dates:
             day_scores = self.history_store.get_all_sectors_scores(date)
             for sector_name in top_sectors:
                 found = next((s for s in day_scores if s["name"] == sector_name), None)
                 if found:
                     if sector_name not in historical_data:
-                        historical_data[sector_name] = []
-                    historical_data[sector_name].append(found["score"])
-        
-        # 生成 HTML 图表
+                        historical_data[sector_name] = {"dates": [], "scores": []}
+                    historical_data[sector_name]["dates"].append(date)
+                    historical_data[sector_name]["scores"].append(found["score"])
+
+        if not historical_data or all(len(v["scores"]) < 2 for v in historical_data.values()):
+            mock_data = self._generate_mock_trend_data(sectors, days)
+            historical_data = mock_data
+            exporter.add_paragraph("*📌 当前为演示数据，实际使用时会显示真实历史趋势*")
+            exporter.add_paragraph("")
+
         if self.include_html and historical_data:
+            first_series = next(iter(historical_data.values()), None)
+            chart_dates = first_series["dates"] if isinstance(first_series, dict) else dates[:30]
             html_chart = self.chart_generator.generate_trend_comparison_chart(
-                historical_data,
-                dates,
+                {k: v["scores"] if isinstance(v, dict) else v for k, v in historical_data.items()},
+                chart_dates,
                 title="板块热度趋势对比"
             )
             exporter.add_paragraph("**交互式图表：**")
             exporter.add_code_block(html_chart, language="html")
             exporter.add_paragraph("")
-        
-        # 生成 ASCII 图表
+
         if self.include_ascii and top_sectors:
             for sector_name in top_sectors[:3]:
-                scores = historical_data.get(sector_name, [])
-                if scores:
+                if sector_name in historical_data:
+                    data = historical_data[sector_name]
+                    scores = data["scores"] if isinstance(data, dict) else data
+                    chart_dates = data["dates"] if isinstance(data, dict) else dates[:len(scores)]
+                else:
+                    scores = []
+                    chart_dates = []
+                if len(scores) >= 2:
                     ascii_chart = self.chart_generator.generate_ascii_chart(
                         scores,
-                        dates,
+                        chart_dates,
                         title=f"{sector_name} 热度趋势"
                     )
                     exporter.add_code_block(ascii_chart)
