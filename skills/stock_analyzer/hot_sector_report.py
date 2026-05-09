@@ -148,11 +148,11 @@ class HotSectorReportExporter:
         top_n: int
     ):
         """添加趋势图表"""
-        exporter.add_heading("📈 板块热度趋势", 2)
-        exporter.add_paragraph("以下图表展示热门板块近期的热度变化趋势：")
+        exporter.add_heading("📈 板块热度趋势对比", 2)
+        exporter.add_paragraph(f"以下图表展示**热门板块 TOP {top_n}** 近 {days} 个交易日的热度变化趋势对比：")
         exporter.add_paragraph("")
 
-        top_sectors = [s.get("name", f"Sector{i}") for i, s in enumerate(sectors[:5])]
+        top_sectors = [s.get("name", f"Sector{i}") for i, s in enumerate(sectors[:top_n])]
 
         dates = self.history_store.get_dates()[-days:]
         historical_data = {}
@@ -191,26 +191,26 @@ class HotSectorReportExporter:
             html_chart = self.chart_generator.generate_trend_comparison_chart(
                 {k: v["scores"] for k, v in historical_data.items()},
                 chart_dates,
-                title="板块热度趋势对比"
+                title=f"热门板块 TOP {len(historical_data)} 热度趋势对比"
             )
-            exporter.add_paragraph("**交互式图表：**")
+            exporter.add_paragraph("**📊 折线对比图：**")
             exporter.add_code_block(html_chart, language="html")
             exporter.add_paragraph("")
 
-        if self.include_ascii and top_sectors:
-            for sector_name in top_sectors[:3]:
-                if sector_name in historical_data:
-                    data = historical_data[sector_name]
-                    scores = data["scores"]
-                    chart_dates = data["dates"]
-                    if len(scores) >= 2:
-                        ascii_chart = self.chart_generator.generate_ascii_chart(
-                            scores,
-                            chart_dates,
-                            title=f"{sector_name} 热度趋势"
-                        )
-                        exporter.add_code_block(ascii_chart)
-                        exporter.add_paragraph("")
+        if self.include_ascii and historical_data:
+            exporter.add_paragraph("**📈 ASCII 趋势图（TOP 5）：**")
+            for sector_name in list(historical_data.keys())[:5]:
+                data = historical_data[sector_name]
+                scores = data["scores"]
+                chart_dates = data["dates"]
+                if len(scores) >= 2:
+                    ascii_chart = self.chart_generator.generate_ascii_chart(
+                        scores,
+                        chart_dates,
+                        title=f"{sector_name}"
+                    )
+                    exporter.add_code_block(ascii_chart)
+            exporter.add_paragraph("")
     
     def _add_rank_change_chart(
         self,
